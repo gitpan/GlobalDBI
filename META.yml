@@ -1,0 +1,15 @@
+--- #YAML:1.0
+name:                GlobalDBI
+version:             0.21
+abstract:            Simple DBI wrapper with support for multiple connections
+license:             open_source
+author:              
+    - Ryan Rose, Joe Spinney, Alex Ayars <pause@nodekit.org>
+generated_by:        ExtUtils::MakeMaker version 6.42
+distribution_type:   module
+requires:     
+    DBI:                           1.4
+    File::Tempdir:                 0.02
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
+    version: 1.3

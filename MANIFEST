@@ -5,3 +5,5 @@ INSTALL
 Changes
 Makefile.PL
 lib/GlobalDBI.pm
+t/GlobalDBI.t
+META.yml                                 Module meta-data (added by MakeMaker)

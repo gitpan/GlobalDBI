@@ -13,21 +13,17 @@ package GlobalDBI;
 use strict;
 use warnings;
 
-our $VERSION = "0.20";
+our $VERSION = "0.21";
 
-use Exporter;
+use base qw| Exporter |;
+
 use DBI;
 use Fcntl;
 
-use vars qw(@ISA @EXPORT @EXPORT_OK %App %CONNECTION %DBH);
+use vars qw(@EXPORT_OK %DBH);
 
-@ISA = qw(Exporter);
-
-@EXPORT = qw(%App);
-
-@EXPORT_OK = @EXPORT;
-
-%App = (
+our %CONNECTION = ( );
+our %App = (
 #  MyApp => { # User => Password
 #    bob => 'jk32jk3jjkl',
 #  },
@@ -37,9 +33,11 @@ use vars qw(@ISA @EXPORT @EXPORT_OK %App %CONNECTION %DBH);
 #  },
 );
 
-our $DEBUG;
+@EXPORT_OK = qw(%App %CONNECTION);
 
-our $LOG_ERRORS = 1;
+our $DEBUG;
+our $LOG_ERRORS;
+
 our $LOG_DIR    = '/tmp';
 
 #=================================
@@ -57,6 +55,15 @@ our $LOG_DIR    = '/tmp';
 #     },
 #   ],
 # );
+
+sub define {
+  my $class = shift;
+  my %sources = @_;
+
+  for my $source ( keys %sources ) {
+    $CONNECTION{$source} = $sources{$source};
+  }
+}
 
 sub new {
   my $class = shift;
@@ -83,7 +90,9 @@ sub _getDBPasswd {
 
   my $passwd;
 
-  eval {
+  do {
+    no warnings "once";
+
     $passwd = $GlobalDBI::Credentials::App{ $ARGS{App} }->{ $ARGS{username} };
   };
 
@@ -317,6 +326,10 @@ sub get_error_string {
   return $self->{_lastErrorStr} || $DBI::errstr;
 }
 
+sub errstr {
+  return get_error_string(@_);
+}
+
 #=======================================================
 # PRIVATE METHODS
 #=======================================================
@@ -385,7 +398,7 @@ sub _do_sql {
     unless ( $self->{_statements}{$sql} = $sth = $self->{dbh}->prepare($sql) ) {
       $self->_set_err_str(
         "failed sth obj creation: $DBI::errstr - Sql: $sql\n");
-      $self->_log_error($rw);
+      $LOG_ERRORS && $self->_log_error($rw);
       return undef;
     }
   }
@@ -449,10 +462,16 @@ sub _set_err_str {
 sub _log_error {
   my ( $self, $type, $error ) = @_;
 
-  my $sqlLog = join( '/', $LOG_DIR, $self->{dbName} );
-  $sqlLog .= $type eq 'W' ? '_sqlErr_write' : '_sqlErr_read';
   $error ||= $self->{_lastErrorStr};
   $error =~ s/\n/ /g;
+
+  my $message = join( ' ', time, $0, $error );
+
+  my $name = $self->{dbName};
+  $name =~ s/.*\///; # SQLite uses full paths
+
+  my $sqlLog = join( '/', $LOG_DIR, $name );
+  $sqlLog .= $type eq 'W' ? '_sqlErr_write' : '_sqlErr_read';
 
   local (*LOG);
   open( LOG, ">>$sqlLog" )
@@ -461,7 +480,7 @@ sub _log_error {
   flock( LOG, &Fcntl::LOCK_EX );
   select( ( select(LOG), $| = 1 )[0] );
   seek( LOG, 0, 2 );
-  print LOG join( ' ', time, $0, $error );
+  print LOG $message;
   print LOG "\n";
   flock( LOG, &Fcntl::LOCK_UN );
 
@@ -488,6 +507,26 @@ GlobalDBI - Simple DBI wrapper with support for multiple connections
 =cut
 
 =head1 SYNOPSIS
+
+  use GlobalDBI;
+
+  #
+  # Define a new data source:
+  #
+  my $dsn = 'DBI:SQLite:dbname=example';
+
+  GlobalDBI->define(
+    "YourApp" => [ $dsn, '', '', { RaiseError => 1 } ],
+  };
+
+  #
+  # Connect to a named data source:
+  #
+  my $dbi = GlobalDBI->new(
+    dbName => "YourApp"
+  );
+
+=head1 DESCRIPTION
                                                                                 
 GlobalDBI is a helper/wrapper for L<DBI>.  It provides error logging,
 methods to perform common db functions, and support for connections to
@@ -506,8 +545,8 @@ Most all methods return undef on error so you should check the value
 before using it.
                                                                                 
 =head2 Example
-                                                                                
-  my $myDBI = GlobalDBI->new('my_db');
+
+  my $myDBI = GlobalDBI->new(dbName => 'my_db');
   my $sth = $myDBI->select_data('select * from JUNK where a=? and b=?',
     ['joe', 'bob']);
   foreach my $row($sth->fetchrow_hashref())
@@ -640,13 +679,13 @@ returns affected row count or insertid
     $testDate
   );
 
-=item * C<get_error_string>
+=item * C<errstr>, C<get_error_string>
 
 returns the latest error text set as a result of the last action
 
   my $insertID = $db->write_data('delete from non_existent_table');
   unless ($insertID > 0) {
-    print STDERR $db->get_error_string();
+    print STDERR $db->errstr();
   }
 
 =cut
@@ -699,28 +738,24 @@ returns affected row count or insertid
     $testDate
   );
 
-=item * C<get_error_string>
+=item * C<errstr>, C<get_error_string>
 
 returns the latest error text set as a result of the last action
 
   my $insertID = $db->write_data('delete from non_existent_table');
   unless ($insertID > 0) {
-    print STDERR $db->get_error_string();
+    print STDERR $db->errstr();
   }
 
 =back
 
 =head1 REVISION
 
-  This document is for version 0.20 of GlobalDBI.
-
-  $Id: //depotit/tools/snitchd/GlobalDBI-0.20/lib/GlobalDBI.pm#1 $
+This document is for version 0.21 of GlobalDBI.
 
 =head1 AUTHOR
 
-  Ryan Rose,
-  Joe Spinney,
-  Alex Ayars <pause@nodekit.org>
+Ryan Rose, Joe Spinney, Alex Ayars <pause@nodekit.org>
 
 =head1 COPYRIGHT
 
