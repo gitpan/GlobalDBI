@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                GlobalDBI
-version:             0.21
+version:             0.22
 abstract:            Simple DBI wrapper with support for multiple connections
 license:             open_source
 author:              
